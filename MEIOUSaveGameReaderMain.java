@@ -30,7 +30,7 @@ import org.knowm.xchart.style.Styler.ChartTheme;
 //V 0.1: Set up basic systems, hack with XChart (9/8/19)
 //V 0.15: Added option to include subjects, heretics are now sorted under their own categories. TODO: Economy (9/9/19)
 public class MEIOUSaveGameReaderMain {
-	Pattern p = Pattern.compile("\t{1}[A-Z]{3,4}={");
+	static Pattern p = Pattern.compile("\t{1}[A-Z]{3,4}=[{]");
 	public static String fileName = "";
 	static Charset charset = Charset.forName("ISO-8859-1");
 	static HashMap<String, Color> colors = new HashMap<String, Color>();
@@ -73,7 +73,7 @@ public class MEIOUSaveGameReaderMain {
 			List<String> provinceList = null;
 
 			long startTime = System.currentTimeMillis();
-			System.out.println("Would you like to include subjects as part of the parent country (y/n)?");
+			System.out.println("Would you like to include subjects as part of the parent country (y/n)? (NOTE: WILL ONLY WORK ON LATEST VERSION)");
 			String subjects = inputScan.next();
 			//System.out.println("Do you want to compare your nation with the rest of the world (y/n)? WARNING: This can take a while.");
 			includeWorld = "y";
@@ -273,7 +273,15 @@ public class MEIOUSaveGameReaderMain {
 			if (line.contains("has_set_government_name=yes")) {
 				String tag = lines.get(i-1);
 				if (tag.contains("was_player")) { //player nations will need to go up further
-					tag = lines.get(i-3);
+					for (int x = i; x >=0; x--) {
+						String tempLine = lines.get(x);
+						if (tempLine.matches("\t{1}[A-Z]{3,4}=[{]")) {
+							tag = tempLine;
+							System.out.println(tag);
+							break;
+						}
+					}
+
 				}
 				tag = tag.replace("\t", "");
 				tag  = tag.split("=")[0];
@@ -600,7 +608,13 @@ public class MEIOUSaveGameReaderMain {
 	    List<String> toSearch = new ArrayList<String>();
 		toSearch.add(tag);
 		if (lines.get(startIndex).contains("was_player")) {
-			startIndex-= 2;
+			System.out.println("Found player " + startIndex);
+			for (int i = startIndex; i > 0; i--) {
+				String line = lines.get(i);
+				if (p.matcher(line) != null) {
+					startIndex = i;
+				}
+			}
 		}
 	    if (subjectsOption.equals("y")) {
 	    	boolean foundTag = false;
@@ -617,15 +631,17 @@ public class MEIOUSaveGameReaderMain {
 	    				line = line.replace("\t", "");
 	    				String[] temp = line.split(" ");
 	    				for (String nation : temp) {
+	    					System.out.println(nation + " subject");
 	    					toSearch.add(nation);
 	    				}
-
+	    				System.out.println(i);
 	    				return toSearch;
 	    			}
 	    			
 	    			
 	    			else if (line.contains("score_rank")) {
 	    				String[] toReturn = {tag};
+	    				System.out.println(i);
 	    				return toSearch;
 	    				}
 	    			}
