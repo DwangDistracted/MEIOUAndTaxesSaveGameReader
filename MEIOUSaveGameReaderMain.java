@@ -25,10 +25,6 @@ import org.knowm.xchart.PieChartBuilder;
 import org.knowm.xchart.SwingWrapper;
 import org.knowm.xchart.style.Styler.ChartTheme;
 
-//MEIOUSaveGameReader V 1.01
-//CHANGELOG:
-//V 0.1: Set up basic systems, hack with XChart (9/8/19)
-//V 0.15: Added option to include subjects, heretics are now sorted under their own categories. TODO: Economy (9/9/19)
 public class MEIOUSaveGameReaderMain {
 	static Pattern p = Pattern.compile("\t{1}[A-Z]{3,4}=[{]");
 	public static String fileName = "";
@@ -45,14 +41,20 @@ public class MEIOUSaveGameReaderMain {
 	static HashMap<String, HashMap<String, Double>> worldCultures = new HashMap<String, HashMap<String, Double>>();
 	static HashMap<String, HashMap<String, Double>> worldCities = new HashMap<String, HashMap<String, Double>>();
 	static HashMap<String, HashMap<String, Double>> worldGoods = new HashMap<String, HashMap<String, Double>>();
-	static HashMap<String, Double> worldReligionTotal = new HashMap<String, Double>();
+
 	static HashMap<String, String> provinces= new HashMap<String, String>();
+	static HashMap<String, HashMap<String, Double>> nationSizes =new HashMap<String, HashMap<String, Double>>();
+
 	
-	//National Rankigns
+	//National Rankings
 	static HashMap<String, Double> worldPopulations = new HashMap<String, Double>();
 	static HashMap<String, Double> worldEconomies = new HashMap<String, Double>();
 	static HashMap<String, Double> worldCityRankings = new HashMap<String, Double>();
 	static HashMap<String, Integer> locations = new HashMap<String, Integer>();
+	static HashMap<String, Double> worldSizes =new HashMap<String, Double>();
+	static HashMap<String, Double> worldReligionTotal = new HashMap<String, Double>();
+	
+	static HashMap<String, Boolean> addedNations = new HashMap<String, Boolean>();
 	static List<String> lines;
 	static List<String> nationNames;
 	static HashMap<String, String> nationNamesHM = new HashMap<String, String>();
@@ -134,6 +136,7 @@ public class MEIOUSaveGameReaderMain {
 				double otherPop = 0;
 				while (hmIterator.hasNext()) {
 					Map.Entry mapElement = (Map.Entry)hmIterator.next(); 
+					String culture = (String) mapElement.getKey();
 					double pop = (Double) mapElement.getValue();
 					String percPop = df2.format((pop/totalPop) * 100);
 					System.out.println(mapElement.getKey() + " population: " + df2.format(pop) + "k (" + percPop + "%)");
@@ -141,7 +144,7 @@ public class MEIOUSaveGameReaderMain {
 						otherPop += pop;
 					}
 					else {
-						chart.addSeries((String)mapElement.getKey(), (Double)mapElement.getValue());
+						chart.addSeries(culture + " (" + pop + "k)", pop);
 					}
 
 				}
@@ -171,6 +174,7 @@ public class MEIOUSaveGameReaderMain {
 					double totalOfReligion = 0;
 					totalOfReligion = getTotalInHashMap(subHM);
 					String religionName = (String)religionElement.getKey();
+					religionName += " (" + totalOfReligion + " k)";
 					if (colors.containsKey(religionName)) {
 						if (totalOfReligion / totalPop < 0.015) {
 							ReligiousOtherPop += totalOfReligion;
@@ -200,7 +204,7 @@ public class MEIOUSaveGameReaderMain {
 						System.out.println("\t" + culture + ": " + df2.format(population) + "k (" + subPercString + "%)");
 					}
 				}
-				religionChart.addSeries("other", ReligiousOtherPop);
+				religionChart.addSeries("other (" + ReligiousOtherPop + "k)", ReligiousOtherPop);
 				System.out.println("***********************************************");
 				System.out.println("*                   Cities                    *");
 				System.out.println("***********************************************");
@@ -234,20 +238,8 @@ public class MEIOUSaveGameReaderMain {
 				System.out.println("total revenue from goods produced: " + df2.format(totalGoods));
 				new SwingWrapper(religionChart).displayChart();
 
-			    // Save it
-			    BitmapEncoder.saveBitmap(chart, "./Sample_Chart", BitmapFormat.PNG);
-
-			    // or save it in high-res
-			    BitmapEncoder.saveBitmapWithDPI(chart, "./Sample_Chart_300_DPI", BitmapFormat.PNG, 300);
-
 			    // Show it
 			    new SwingWrapper(chart).displayChart();
-
-			    // Save it
-			    BitmapEncoder.saveBitmap(chart, "./Sample_Chart", BitmapFormat.PNG);
-
-			    // or save it in high-res
-			    BitmapEncoder.saveBitmapWithDPI(chart, "./Sample_Chart_300_DPI", BitmapFormat.PNG, 300);
 			    long endTime = System.currentTimeMillis();
 			    long finalTime = endTime - startTime;
 			    System.out.println("Took " + (finalTime / 1000) + " seconds");
@@ -257,7 +249,7 @@ public class MEIOUSaveGameReaderMain {
 			    //now read the file line by line...
 				
 			} catch (Exception e){
-				
+				System.out.println("Could not find file.");
 			}
 		}		    
 
@@ -265,31 +257,53 @@ public class MEIOUSaveGameReaderMain {
 	
 	public static void collectWorldProvinces(String subjectsOption) {
 		int startIndex = getToStartOfNations();
-		String currentNation = "";
+
 		findStartLine("\t---={");
 		for (int i = startIndex; i < lines.size(); i++) {
+			String currentNation = "";
 			String line = lines.get(i);
 			line = line.replace("\t", "");
 			if (line.contains("has_set_government_name=yes")) {
 				String tag = lines.get(i-1);
-				if (tag.contains("was_player")) { //player nations will need to go up further
-					for (int x = i; x >=0; x--) {
+				//if (tag.contains("was_player") || line.contains("human")) { //player nations will need to go up further
+				boolean detected = false;	
+				for (int x = i; x >=0; x--) {
 						String tempLine = lines.get(x);
-						if (tempLine.matches("\t{1}[A-Z]{3,4}=[{]")) {
+						if (tempLine.matches("\t{1}[A-Z0-9]{3,4}=[{]")) {
 							tag = tempLine;
-							System.out.println(tag);
+							detected = true;
 							break;
 						}
-					}
+					//}
 
+				}
+				
+				if (detected == false) {
+					System.out.println("ERROR");
+					System.exit(0);
 				}
 				tag = tag.replace("\t", "");
 				tag  = tag.split("=")[0];
 	    		locations.put(tag, i);
 				currentNation = tag;
-				if (!nations.containsKey(currentNation) && !currentNation.equals(("REB")) && !currentNation.contentEquals("AAA")) {
-					if ((!checkForSubject(i) || subjectsOption.equals("n"))) {
+				if (!currentNation.equals(("REB")) && !currentNation.contentEquals("AAA")) {
+					if (addedNations.containsKey(currentNation) && subjectsOption.equals("y")) {
+						addedNations.remove(currentNation);
+						
+						worldPopulations.remove(currentNation);
+						worldEconomies.remove(currentNation);
+						worldCities.remove(currentNation);
+						worldReligions.remove(currentNation);
+						worldGoods.remove(currentNation);
+						worldSizes.remove(currentNation);
+						nationSizes.remove(currentNation);
+						worldCultures.remove(currentNation);
+
+					}
+					
+					else {
 						List<String> nationsList = getNationList(subjectsOption, tag, i-1);
+						HashMap<String, Double> provinceSizes = new HashMap<String, Double>();
 						cultures = new HashMap<String, Double>();
 						cities = new HashMap<String, Double>();
 						religions = new HashMap<String, HashMap<String,Double>>();
@@ -297,6 +311,7 @@ public class MEIOUSaveGameReaderMain {
 						int index = 0;
 						for (int x = 0; x < nationsList.size(); x++) {
 							String nation = nationsList.get(x);
+							addedNations.put(nation, true);
 							System.out.println("Gathering data on " + nation);
 							if (index != 0 && subjectsOption.equals("y")) {
 								String toLookFor = "\t" + nation + "={";
@@ -306,28 +321,35 @@ public class MEIOUSaveGameReaderMain {
 								nationsList.addAll(subList);
 							}
 							index++;
-							if (nations.containsKey(nation)) {
+							if (addedNations.containsKey(nation)) {
+								worldPopulations.remove(nation);
+								worldEconomies.remove(nation);
+								worldCities.remove(nation);
+								worldReligions.remove(nation);
+								worldGoods.remove(nation);
+								worldSizes.remove(nation);
+								nationSizes.remove(nation);
+								nations.remove(nation);
 							}
 							
-							else {
-		    					nations.put(nation, true);
+							if (!nations.containsKey(nation)) {
+			    				nations.put(nation, true);
 							}
 							
 							if (!nationNamesHM.containsKey(nation)) {
 								findColonyName(nation);
 							}
-
 							List<String> provinceList = getProvinceList(nation);
 							if (provinceList.size() != 0) {
 								String nationalReligion = findNationalReligion(nation);
 							    for (String province : provinceList) {
 							    	if (provinces.containsKey(province)) {
-							    	}
-							    	
-							    	else {
-							    		provinces.put(province, nation);
-							    	}
-							    	String toLookFor = "-" + province+"={";
+								    }
+								    
+								    else {
+								    	provinces.put(province, nation);
+								    }
+								    String toLookFor = "-" + province+"={";
 									String culture = null;
 									String majorityReligion = null;
 									String provName = "";
@@ -336,35 +358,43 @@ public class MEIOUSaveGameReaderMain {
 									int startLine = findStartLine(toLookFor);
 
 									provName = findToLookFor(toLookFor, startLine);
+								   	double provSize = findProvinceSize(startLine);
+							    	provinceSizes.put(provName, provSize);
 									population = findPop(startLine, provName);
 									culture = findCulture(startLine, population);
 									majorityReligion = findProvMajorityReligion(startLine);
 									findReligiousMinorities(startLine, culture, population, nationalReligion, majorityReligion);
-
-								}
-
+							    }
 							}
-							
+								
 							else {
 								nations.remove(currentNation);
 							}
-
 						}
-						
+							
 						if (nations.containsKey(currentNation)) {
 							double totalPop = getTotalInHashMap(cultures);
 							double totalEco = getTotalInHashMap(producedGoods);
+							double totalSize = getTotalInHashMap(provinceSizes);
 							worldPopulations.put(tag, totalPop);
 							worldEconomies.put(tag, totalEco);
 							worldCultures.put(tag, cultures);
 							worldCities.put(tag, cities);
 							worldReligions.put(tag, religions);
 							worldGoods.put(tag, producedGoods);
+							worldSizes.put(tag, totalSize);
+							nationSizes.put(tag, provinceSizes);
+
 						}
-					}
-
+					}			
 				}
-
+			}
+				
+			else {
+					
+				if (currentNation.equals(("REB")) && !currentNation.contentEquals("AAA")) {
+				}
+				
 			}
 		}
 		
@@ -395,7 +425,6 @@ public class MEIOUSaveGameReaderMain {
 		//Iterator worldCulturesIt = worldCultures.entrySet().iterator();
 
 		/*while (worldCulturesIt.hasNext()) {
-
 			Map.Entry cultureElement = (Map.Entry) worldCulturesIt.next();
 			HashMap<String, Double> subHM = (HashMap<String, Double>) cultureElement.getValue();
 			double totalPop = getTotalInHashMap(subHM);
@@ -403,7 +432,6 @@ public class MEIOUSaveGameReaderMain {
 			if (worldCultures.size() - index <= 10) {
 				System.out.println(nationNamesHM.get(cultureElement.getKey()) + " : " + df2.format(totalPop) + "k (#" + (worldCultures.size() - index) + ")");
 			}
-
 			index++;
 		}*/
 		
@@ -439,6 +467,38 @@ public class MEIOUSaveGameReaderMain {
 		}
 		
 		worldCityRankings = sortByValue(worldCityRankings);
+		
+		System.out.println("******************************");
+		System.out.println("Cities of the world:");
+		Iterator CityIT = worldCityRankings.entrySet().iterator();
+		while (CityIT.hasNext()) {
+			Map.Entry cityEntry = (Map.Entry)CityIT.next();
+			String city = (String) cityEntry.getKey();
+			int place = findWorldPlace(worldCityRankings, city);
+			if (place <= 10) {
+				double val = (Double) cityEntry.getValue();
+				System.out.println(city + ": " + df2.format(val) + "k");
+			}
+
+		}
+		
+		worldSizes = sortByValue(worldSizes);
+		
+		System.out.println("******************************");
+		System.out.println("Top ten largest nations:");
+		Iterator sizeIT = worldSizes.entrySet().iterator();
+		double worldSurface = getTotalInHashMap(worldSizes);
+		while (sizeIT.hasNext()) {
+			Map.Entry sizeEntry = (Map.Entry)sizeIT.next();
+			String nation = (String) sizeEntry.getKey();
+			int place = findWorldPlace(worldSizes, nation);
+			if (place <= 10) {
+				double val = (Double) sizeEntry.getValue();
+				double percOfWorldSurface = (val / worldSurface) * 100;
+				System.out.println(nation + ": " + df2.format(val * 46) + "km^2 (" + df2.format(percOfWorldSurface) + "% of settled land)");
+			}
+
+		}
 		Scanner scan = new Scanner(System.in);
 		System.out.println("Insert a tag to learn more about a specific nation, or type done to quit. ");
 		String answer = scan.next();
@@ -608,7 +668,6 @@ public class MEIOUSaveGameReaderMain {
 	    List<String> toSearch = new ArrayList<String>();
 		toSearch.add(tag);
 		if (lines.get(startIndex).contains("was_player")) {
-			System.out.println("Found player " + startIndex);
 			for (int i = startIndex; i > 0; i--) {
 				String line = lines.get(i);
 				if (p.matcher(line) != null) {
@@ -631,17 +690,14 @@ public class MEIOUSaveGameReaderMain {
 	    				line = line.replace("\t", "");
 	    				String[] temp = line.split(" ");
 	    				for (String nation : temp) {
-	    					System.out.println(nation + " subject");
 	    					toSearch.add(nation);
 	    				}
-	    				System.out.println(i);
 	    				return toSearch;
 	    			}
 	    			
 	    			
 	    			else if (line.contains("score_rank")) {
 	    				String[] toReturn = {tag};
-	    				System.out.println(i);
 	    				return toSearch;
 	    				}
 	    			}
@@ -659,8 +715,6 @@ public class MEIOUSaveGameReaderMain {
 	public static List<String> getProvinceList(String tag) {
 	   	String toLookFor = "\t" + tag + "={";
 	   	List<String> provList = new ArrayList<String>();
-	   	boolean provinceListSet = false;
-	   	boolean foundPlayer = true;
 	   	int start = 0;
 	   	if (locations.containsKey(tag)) {
 		   	start = locations.get(tag);
@@ -977,6 +1031,18 @@ public class MEIOUSaveGameReaderMain {
 		}
 	}
 	
+	public static double findProvinceSize(int startLine) {
+		for (int i = startLine; i < lines.size(); i++) {
+			String line = lines.get(i);
+			if (line.contains("prov_size")) {
+				line = line.replace("\t", "");
+				double toReturn = Double.parseDouble(line.split("=")[1]);
+				return toReturn;
+			}
+		}
+		
+		return 0;
+	}
 	public static void getNationalInfo(String tag) throws IOException {
 		if (!nations.containsKey(tag)) {
 			System.out.println("Invalid tag.");
@@ -1004,6 +1070,7 @@ public class MEIOUSaveGameReaderMain {
 		int worldPopRank = findWorldPlace(worldPopulations, tag);
 		while (hmIterator.hasNext()) {
 			Map.Entry mapElement = (Map.Entry)hmIterator.next(); 
+			String culture = (String) mapElement.getKey();
 			double pop = (Double) mapElement.getValue();
 			String percPop = df2.format((pop/totalPop) * 100);
 			System.out.println(mapElement.getKey() + " population: " + df2.format(pop) + "k (" + percPop + "%)");
@@ -1011,7 +1078,7 @@ public class MEIOUSaveGameReaderMain {
 				otherPop += pop;
 			}
 			else {
-				chart.addSeries((String)mapElement.getKey(), (Double)mapElement.getValue());
+				chart.addSeries(culture + " (" + pop + "k)", pop);
 			}
 
 		}
@@ -1047,6 +1114,7 @@ public class MEIOUSaveGameReaderMain {
 			double totalOfReligion = 0;
 			totalOfReligion = getTotalInHashMap(subHM);
 			String religionName = (String)religionElement.getKey();
+			religionName += " (" + totalOfReligion + "k)";
 			if (colors.containsKey(religionName)) {
 				if (totalOfReligion / totalPop < 0.015) {
 					ReligiousOtherPop += totalOfReligion;
@@ -1076,7 +1144,7 @@ public class MEIOUSaveGameReaderMain {
 				System.out.println("\t" + culture + ": " + df2.format(population) + "k (" + subPercString + "%)");
 			}
 		}
-		religionChart.addSeries("other", ReligiousOtherPop);
+		religionChart.addSeries("other (" + ReligiousOtherPop + "k)", ReligiousOtherPop);
 		System.out.println("***********************************************");
 		System.out.println("*                   Cities                    *");
 		System.out.println("***********************************************");
@@ -1088,7 +1156,7 @@ public class MEIOUSaveGameReaderMain {
 			String cityName = (String) city.getKey();
 			Double cityPop = (Double) city.getValue();
 			int cityPlaceInNation = findWorldPlace(citiesMap, cityName);
-			if (cityPop > 100) {
+			if (cityPop > 100 || cityPlaceInNation <= 10) {
 				System.out.println(cityName + " : " + cityPop + "k (#" + cityPlaceInNation + " in country) (#" + findWorldPlace(worldCityRankings, cityName) +" in world)" );
 			}
 		}
@@ -1116,11 +1184,13 @@ public class MEIOUSaveGameReaderMain {
 			double percGoods = (goodVal /totalGoods) * 100;
 			String goodString = df2.format(percGoods);
 			System.out.println(goodName + ": " + df2.format(goodVal) + " (" + goodString  + "%)");
-			productionChart.addSeries(goodName, goodVal);
+			productionChart.addSeries(goodName + " (" + goodVal + ")", goodVal);
 		}
 		
 		int place = findWorldPlace(worldEconomies, tag);
 		System.out.println("total revenue from goods produced: " + df2.format(totalGoods) + " (#" + place + ")");
+		
+		System.out.println("Total size: " + (worldSizes.get(tag) * 46)+ "km^2 (#" + findWorldPlace(worldSizes, tag) + " in world)");
 		new SwingWrapper(religionChart).displayChart();
 
 		new SwingWrapper(productionChart).displayChart();
@@ -1138,6 +1208,9 @@ public class MEIOUSaveGameReaderMain {
 			nationNames = Files.readAllLines(Paths.get(filePath), charset);
 			for (int i = 1; i < nationNames.size(); i++) {
 				String line = nationNames.get(i);
+				if (line.equals(" ")) {
+					return;
+				}
 				if (!line.contains("ADJ")) {
 					String[] lineAr = line.split(":");
 
