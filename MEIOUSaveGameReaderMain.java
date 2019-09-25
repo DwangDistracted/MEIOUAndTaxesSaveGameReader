@@ -25,6 +25,10 @@ import org.knowm.xchart.PieChartBuilder;
 import org.knowm.xchart.SwingWrapper;
 import org.knowm.xchart.style.Styler.ChartTheme;
 
+//MEIOUSaveGameReader V 1.01
+//CHANGELOG:
+//V 0.1: Set up basic systems, hack with XChart (9/8/19)
+//V 0.15: Added option to include subjects, heretics are now sorted under their own categories. TODO: Economy (9/9/19)
 public class MEIOUSaveGameReaderMain {
 	static Pattern p = Pattern.compile("\t{1}[A-Z]{3,4}=[{]");
 	public static String fileName = "";
@@ -41,7 +45,8 @@ public class MEIOUSaveGameReaderMain {
 	static HashMap<String, HashMap<String, Double>> worldCultures = new HashMap<String, HashMap<String, Double>>();
 	static HashMap<String, HashMap<String, Double>> worldCities = new HashMap<String, HashMap<String, Double>>();
 	static HashMap<String, HashMap<String, Double>> worldGoods = new HashMap<String, HashMap<String, Double>>();
-
+	static HashMap<String, String> citiesToNation = new HashMap<String, String>();
+	
 	static HashMap<String, String> provinces= new HashMap<String, String>();
 	static HashMap<String, HashMap<String, Double>> nationSizes =new HashMap<String, HashMap<String, Double>>();
 
@@ -361,6 +366,8 @@ public class MEIOUSaveGameReaderMain {
 								   	double provSize = findProvinceSize(startLine);
 							    	provinceSizes.put(provName, provSize);
 									population = findPop(startLine, provName);
+									
+									citiesToNation.put(provName, currentNation);
 									culture = findCulture(startLine, population);
 									majorityReligion = findProvMajorityReligion(startLine);
 									findReligiousMinorities(startLine, culture, population, nationalReligion, majorityReligion);
@@ -453,31 +460,21 @@ public class MEIOUSaveGameReaderMain {
 				System.out.println(nationNamesHM.get(tag) + " (" + tag + "):" + df2.format(totalGoods) + " (" + df2.format(perc) + "% of world output), " +  "(#" + place + ")");
 			}
 		}
-		
-		System.out.println("******************************");
-		System.out.println("Religions of the world:");
-		worldReligionTotal = sortByValue(worldReligionTotal);
-		Iterator worldReligionIt = worldReligionTotal.entrySet().iterator();
-		while (worldReligionIt.hasNext()) {
-			Map.Entry religionEntry = (Map.Entry)worldReligionIt.next();
-			String religion = (String) religionEntry.getKey();
-			double val = (Double) religionEntry.getValue();
-			double perc = (val / totalPopInWorld) * 100;
-			System.out.println(religion + ": " + df2.format(val) + "k (" + df2.format(perc) + "%)");
-		}
+
 		
 		worldCityRankings = sortByValue(worldCityRankings);
 		
 		System.out.println("******************************");
-		System.out.println("Cities of the world:");
+		System.out.println("Top ten cities of the world:");
 		Iterator CityIT = worldCityRankings.entrySet().iterator();
 		while (CityIT.hasNext()) {
 			Map.Entry cityEntry = (Map.Entry)CityIT.next();
 			String city = (String) cityEntry.getKey();
 			int place = findWorldPlace(worldCityRankings, city);
+			String nation = citiesToNation.get(city);
 			if (place <= 10) {
 				double val = (Double) cityEntry.getValue();
-				System.out.println(city + ": " + df2.format(val) + "k");
+				System.out.println(city + "(" + nation + "): " + df2.format(val) + "k");
 			}
 
 		}
@@ -498,6 +495,19 @@ public class MEIOUSaveGameReaderMain {
 				System.out.println(nation + ": " + df2.format(val * 46) + "km^2 (" + df2.format(percOfWorldSurface) + "% of settled land)");
 			}
 
+		}
+		
+		
+		System.out.println("******************************");
+		System.out.println("Religions of the world:");
+		worldReligionTotal = sortByValue(worldReligionTotal);
+		Iterator worldReligionIt = worldReligionTotal.entrySet().iterator();
+		while (worldReligionIt.hasNext()) {
+			Map.Entry religionEntry = (Map.Entry)worldReligionIt.next();
+			String religion = (String) religionEntry.getKey();
+			double val = (Double) religionEntry.getValue();
+			double perc = (val / totalPopInWorld) * 100;
+			System.out.println(religion + ": " + df2.format(val) + "k (" + df2.format(perc) + "%)");
 		}
 		Scanner scan = new Scanner(System.in);
 		System.out.println("Insert a tag to learn more about a specific nation, or type done to quit. ");
@@ -1078,7 +1088,7 @@ public class MEIOUSaveGameReaderMain {
 				otherPop += pop;
 			}
 			else {
-				chart.addSeries(culture + " (" + pop + "k)", pop);
+				chart.addSeries(culture + " (" +  df2.format(pop) + "k)", pop);
 			}
 
 		}
@@ -1114,7 +1124,7 @@ public class MEIOUSaveGameReaderMain {
 			double totalOfReligion = 0;
 			totalOfReligion = getTotalInHashMap(subHM);
 			String religionName = (String)religionElement.getKey();
-			religionName += " (" + totalOfReligion + "k)";
+			religionName += " (" +  df2.format(totalOfReligion) + "k)";
 			if (colors.containsKey(religionName)) {
 				if (totalOfReligion / totalPop < 0.015) {
 					ReligiousOtherPop += totalOfReligion;
@@ -1184,7 +1194,7 @@ public class MEIOUSaveGameReaderMain {
 			double percGoods = (goodVal /totalGoods) * 100;
 			String goodString = df2.format(percGoods);
 			System.out.println(goodName + ": " + df2.format(goodVal) + " (" + goodString  + "%)");
-			productionChart.addSeries(goodName + " (" + goodVal + ")", goodVal);
+			productionChart.addSeries(goodName + " (" +  df2.format(goodVal) + ")", goodVal);
 		}
 		
 		int place = findWorldPlace(worldEconomies, tag);
