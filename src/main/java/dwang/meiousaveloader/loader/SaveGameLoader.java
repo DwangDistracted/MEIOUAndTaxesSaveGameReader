@@ -1,14 +1,14 @@
-package loader;
+package dwang.meiousaveloader.loader;
 
-import constants.ProgramConstants;
-import model.CountryTag;
-import model.Save;
+import dwang.meiousaveloader.constants.ProgramConstants;
+import jdk.jshell.spi.ExecutionControl;
+import dwang.meiousaveloader.model.CountryTag;
+import dwang.meiousaveloader.model.Save;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
@@ -29,12 +29,12 @@ public class SaveGameLoader {
 
     private File saveGame;
 
-    SaveGameLoader(File saveGame) {
+    public SaveGameLoader(File saveGame) {
         this.saveGame = saveGame;
     }
 
-    public Save doLoad() {
-        return null;
+    public Save doLoad() throws ExecutionControl.NotImplementedException {
+        throw new ExecutionControl.NotImplementedException("SaveGameLoader::doLoad()");
     }
 
     public static void init() {
@@ -47,7 +47,8 @@ public class SaveGameLoader {
                     }
 
                     try {
-                        List<String> lines = Files.readAllLines(file.toPath(), StandardCharsets.ISO_8859_1);
+                        List<String> lines = Files.readAllLines(file.toPath(), ProgramConstants.CHARSET);
+                        boolean errorsThrown = false;
 
                         for (String line : lines) {
                             String[] lineAr = line.split(":");
@@ -58,11 +59,20 @@ public class SaveGameLoader {
                                 name = name.replace("1", "");
                                 name = name.replace("\"", "");
 
-                                localizedNationTagsToNames.put(new CountryTag(tag.trim()), name.trim());
+                                try {
+                                    localizedNationTagsToNames.put(new CountryTag(tag.trim()), name.trim());
+                                } catch (IllegalArgumentException e) {
+                                    errorsThrown = true;
+                                    logger.warn("Error reading localization file: " + e.getMessage());
+                                }
                             }
                         }
 
-                        logger.debug("Country Names Initialized");
+                        if (errorsThrown) {
+                            logger.warn("Country Names Initialized with Errors");
+                        } else {
+                            logger.debug("Country Names Successfully Initialized");
+                        }
                     } catch (IOException e) {
                         logger.warn("Could not read localization file");
                         e.printStackTrace();

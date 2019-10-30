@@ -1,18 +1,20 @@
-import constants.DirectoryConstants;
-import loader.SaveGameLoader;
+package dwang.meiousaveloader;
+
+
+import dwang.meiousaveloader.constants.DirectoryConstants;
+import dwang.meiousaveloader.loader.SaveGameLoader;
+import dwang.meiousaveloader.view.browser.SaveGameSelector;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 
-import static constants.ProgramConstants.FULL_VERSION;
+import static dwang.meiousaveloader.constants.ProgramConstants.FULL_VERSION;
 
 /**
  * Program Entry Point
  */
 public class Launcher {
-    public static File saveGameDirectory;
-
     private static final Logger logger = LogManager.getLogger(Launcher.class);
 
     public static void main(String[] args) {
@@ -27,18 +29,20 @@ public class Launcher {
             System.exit(1);
         }
 
-        logger.debug("Found the EU4 Save Game Directory at '" + saveGameDirectory.getAbsolutePath() + "'");
+        logger.debug("Found the EU4 Save Game Directory at '" + DirectoryConstants.getSaveGameDirectory().get().getAbsolutePath() + "'");
         SaveGameLoader.init();
+
+        new SaveGameSelector();
     }
 
     private static boolean findSaveGameDir(String sgDir) {
         File dir = new File(sgDir);
-        if (!dir.exists() || !dir.canRead() || !dir.isDirectory()) {
+        if (!dir.canRead() || !dir.isDirectory()) {
             // TODO - prompt user for save game directory then retry
             return false;
         }
 
-        saveGameDirectory = dir;
+        DirectoryConstants.setSaveGameDirectory(dir);
         return true;
     }
 }

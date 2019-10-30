@@ -1,4 +1,4 @@
-package model;
+package dwang.meiousaveloader.model;
 
 import java.util.Objects;
 
@@ -8,7 +8,7 @@ public class CountryTag {
     public CountryTag (String tag) {
         tag = Objects.requireNonNull(tag, "Cannot have a null tag");
         if (tag.length() > 3) {
-            throw new IllegalArgumentException("A tag must be Three Characters");
+            throw new IllegalArgumentException("A Tag must be Three Characters. Tag Received: " + tag);
         }
         this.tag = tag;
     }

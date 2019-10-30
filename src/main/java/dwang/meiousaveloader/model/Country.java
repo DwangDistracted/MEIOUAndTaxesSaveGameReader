@@ -1,4 +1,4 @@
-package model;
+package dwang.meiousaveloader.model;
 
 import java.util.ArrayList;
 import java.util.HashMap;

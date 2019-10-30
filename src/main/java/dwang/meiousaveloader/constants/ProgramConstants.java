@@ -1,7 +1,9 @@
-package constants;
+package dwang.meiousaveloader.constants;
 
 import java.io.File;
 import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 public class ProgramConstants {
@@ -11,7 +13,9 @@ public class ProgramConstants {
 
     public static final String FULL_VERSION = major + "." + minor + "." + patch;
 
+    public static final Charset CHARSET = StandardCharsets.ISO_8859_1;
     public static final String DEFAULT_LOCALIZATION = "countryList.yml";
+    public static final String EU4_EXT = ".eu4";
 
     public static Optional<File> loadResourceFile(String fileName) {
         URL url = ProgramConstants.class.getClassLoader().getResource(fileName);
