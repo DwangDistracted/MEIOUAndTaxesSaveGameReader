@@ -20,4 +20,28 @@ public class Country {
         allies = new ArrayList<>();
         subjects = new HashMap<>();
     }
+
+    public void addProvince(Province province) {
+        ownedProvinces.add(province);
+    }
+
+    public List<Province> getProvince() {
+        return ownedProvinces;
+    }
+
+    public void addAlly(CountryTag tag) {
+        allies.add(tag);
+    }
+
+    public List<CountryTag> getAllies () {
+        return allies;
+    }
+
+    public void addSubject(CountryTag tag, SubjectType type) {
+        subjects.put(tag, type);
+    }
+
+    public Map<CountryTag, SubjectType> getSubjects() {
+        return subjects;
+    }
 }

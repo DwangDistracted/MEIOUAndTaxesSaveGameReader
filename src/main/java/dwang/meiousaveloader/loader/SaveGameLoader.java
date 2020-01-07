@@ -1,8 +1,10 @@
 package dwang.meiousaveloader.loader;
 
+import com.google.common.base.Strings;
 import dwang.meiousaveloader.constants.ProgramConstants;
-import jdk.jshell.spi.ExecutionControl;
+import dwang.meiousaveloader.model.Country;
 import dwang.meiousaveloader.model.CountryTag;
+import dwang.meiousaveloader.model.Province;
 import dwang.meiousaveloader.model.Save;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,12 +12,13 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class SaveGameLoader {
+public class SaveGameLoader implements Runnable {
     private static Logger logger = LogManager.getLogger(SaveGameLoader.class);
 
     /**
@@ -27,14 +30,16 @@ public class SaveGameLoader {
      */
     private Map<CountryTag, String> customNationTagsToNames = new HashMap<>();
 
-    private File saveGame;
+    private File saveFile;
+    private boolean includeSubjects;
+    private LoadStatus loadStatus;
 
-    public SaveGameLoader(File saveGame) {
-        this.saveGame = saveGame;
-    }
+    private List<String> lines;
 
-    public Save doLoad() throws ExecutionControl.NotImplementedException {
-        throw new ExecutionControl.NotImplementedException("SaveGameLoader::doLoad()");
+    public SaveGameLoader(File saveGame, boolean includeSubjects) throws IOException {
+        this.saveFile = saveGame;
+        lines = Files.readAllLines(saveFile.toPath(), ProgramConstants.CHARSET);
+        this.includeSubjects = includeSubjects;
     }
 
     public static void init() {
@@ -81,5 +86,129 @@ public class SaveGameLoader {
                 () -> {
                     logger.warn("No Localization File Found");
                 });
+    }
+
+    @Override
+    public void run() {
+        try {
+            this.loadStatus = LoadStatus.LOADING;
+            doLoad();
+            this.loadStatus = LoadStatus.SUCCESS;
+        } catch (LoadInterruptedException e) {
+            logger.warn("Load of save file " + saveFile.getName() + " was aborted by user.");
+        } catch (SaveLoadException e) {
+            logger.error("Could not load save file. Check if save file is corrupted.");
+            logger.error(e);
+            this.loadStatus = LoadStatus.FAILED;
+        }
+    }
+
+    public void setStatus(LoadStatus status) {
+        this.loadStatus = status;
+    }
+
+    public LoadStatus getStatus() {
+        return loadStatus;
+    }
+
+    private Save doLoad() throws LoadInterruptedException, SaveLoadException {
+        logger.info("Starting Load of Save " + saveFile.getName());
+        Save save = new Save(saveFile.getName());
+
+        int countryListStart = lines.indexOf("countries={");
+
+        for (int i = countryListStart; i < lines.size(); i++) {
+            if (lines.get(i).contains("has_set_government_name=yes")) {
+                Country country = loadCountry(i);
+
+                if (null != country) {
+                    save.addCountry(country);
+                }
+            }
+
+            if (isAborted()) {
+                throw new LoadInterruptedException();
+            }
+        }
+
+        logger.info("Successfully Loaded Save " + saveFile.getName());
+        return save;
+    }
+
+    private Country loadCountry(int referenceIndex) throws SaveLoadException, LoadInterruptedException {
+        String countryTag = findTag(referenceIndex);
+        if (Strings.isNullOrEmpty(countryTag)) {
+            throw new SaveLoadException(saveFile.getName(), SaveLoadException.SaveLoadExceptionType.TAG_NOT_FOUND);
+        } else if (ProgramConstants.omittedCountryTags.contains(countryTag)) {
+            logger.trace("Skipping Country Tag " + countryTag);
+            return null;
+        }
+        logger.debug("Loading Country " + countryTag);
+        Country country = new Country(new CountryTag(countryTag));
+
+        List<String> ownedProvinceIds = findOwnedProvinceIds(countryTag);
+
+        for (String provinceId : ownedProvinceIds) {
+            country.addProvince(loadProvince(provinceId));
+
+            if (isAborted()) {
+                throw new LoadInterruptedException();
+            }
+        }
+
+        logger.debug("Loaded Country " + countryTag);
+        return country;
+    }
+
+    private Province loadProvince(String provinceId) {
+        logger.debug("Loading Province " + provinceId);
+        lines.indexOf(provinceId);
+        return null;
+    }
+
+    private String findTag(int referenceIndex) {
+        for (int x = referenceIndex; x >= 0; x--) {
+            if (lines.get(x).matches("\t[A-Z0-9]{3,4}=[{]")) {
+                String tagLine = lines.get(x);
+                return tagLine.trim().split("=")[0];
+            }
+        }
+
+        return null;
+    }
+
+    private List<String> findOwnedProvinceIds(String tag) {
+        int startIndex = lines.indexOf("\t" + tag + "={");
+
+        for (int i = startIndex + 1; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (line.contains("owned_provinces={")) {
+                return List.of(lines.get(i+1).trim().split(" "));
+            } else if (line.matches("\t[A-Z0-9]{3,4}=[{]")) {
+                logger.trace("No Owned Provinces");
+                break;
+            }
+        }
+
+        return Collections.emptyList();
+    }
+
+    private boolean isAborted() {
+        return loadStatus == LoadStatus.ABORTED;
+    }
+
+    public enum LoadStatus {
+        LOADING("LOADING"),
+        SUCCESS("SUCCESS"),
+        ABORTED("ABORTED"),
+        FAILED("FAILED");
+
+        private final String status;
+        LoadStatus(String status) {
+            this.status = status;
+        }
+    }
+
+    private class LoadInterruptedException extends Exception {
     }
 }

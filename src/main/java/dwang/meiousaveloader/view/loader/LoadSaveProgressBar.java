@@ -2,10 +2,12 @@ package dwang.meiousaveloader.view.loader;
 
 import dwang.meiousaveloader.loader.SaveGameLoader;
 import dwang.meiousaveloader.view.SwingUtils;
+import dwang.meiousaveloader.view.browser.SaveGameSelector;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 
@@ -18,9 +20,12 @@ public class LoadSaveProgressBar extends JFrame implements ActionListener {
     private SaveGameLoader saveGameLoader;
     private JProgressBar progressBar;
     private JLabel statusLabel;
+    Thread loadingThread;
 
     public LoadSaveProgressBar(SaveGameLoader saveGameLoader, String saveGameName) {
         this.saveGameLoader = saveGameLoader;
+        loadingThread = new Thread(saveGameLoader);
+        loadingThread.start();
 
         JLabel saveGameLabel = new JLabel("Loading " + saveGameName + "...");
         saveGameLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
@@ -57,6 +62,14 @@ public class LoadSaveProgressBar extends JFrame implements ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
+        int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to cancel loading?", "", JOptionPane.YES_NO_OPTION);
+
+        if (confirm == JOptionPane.NO_OPTION) {
+            return;
+        }
+
+        saveGameLoader.setStatus(SaveGameLoader.LoadStatus.ABORTED);
+        new SaveGameSelector();
         this.dispose();
     }
 }

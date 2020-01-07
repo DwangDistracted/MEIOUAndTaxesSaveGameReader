@@ -11,4 +11,12 @@ public class Save {
         this.saveName = saveName;
         this.countries = new ArrayList<>();
     }
+
+    public void addCountry(Country country) {
+        countries.add(country);
+    }
+
+    public List<Country> getCountries() {
+        return countries;
+    }
 }

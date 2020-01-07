@@ -1,14 +1,13 @@
 package dwang.meiousaveloader.view.browser;
 
 import com.google.common.base.Strings;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import dwang.meiousaveloader.constants.DirectoryConstants;
 import dwang.meiousaveloader.constants.ProgramConstants;
 import dwang.meiousaveloader.loader.SaveGameLoader;
 import dwang.meiousaveloader.view.SwingUtils;
 import dwang.meiousaveloader.view.loader.LoadSaveProgressBar;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -26,6 +25,7 @@ import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -90,8 +90,12 @@ public class SaveGameSelector extends JFrame implements ActionListener {
 
         if (Objects.nonNull(saveFile)) {
             logger.info("Loading Save File '" + selectedSaveName + "'");
-            new LoadSaveProgressBar(new SaveGameLoader(saveFile), selectedSaveName);
-            this.dispose();
+            try {
+                new LoadSaveProgressBar(new SaveGameLoader(saveFile, false), selectedSaveName);
+                this.dispose();
+            } catch (IOException exception) {
+                logger.error("Failed to Load " + selectedSaveName);
+            }
         } else {
             logger.warn("Could not find a save file with the name '" + selectedSaveName + "'");
         }
@@ -125,7 +129,9 @@ public class SaveGameSelector extends JFrame implements ActionListener {
 
         @Override
         public void valueChanged(ListSelectionEvent e) {
-            this.setEnabled(true);
+            if (!Strings.isNullOrEmpty(saveList.getSelectedValue())) {
+                this.setEnabled(true);
+            }
         }
     }
 
