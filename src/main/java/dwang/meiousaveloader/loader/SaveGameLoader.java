@@ -2,6 +2,7 @@ package dwang.meiousaveloader.loader;
 
 import com.google.common.base.Strings;
 import dwang.meiousaveloader.constants.ProgramConstants;
+import dwang.meiousaveloader.constants.SaveFileStrings;
 import dwang.meiousaveloader.model.Country;
 import dwang.meiousaveloader.model.CountryTag;
 import dwang.meiousaveloader.model.Province;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class SaveGameLoader implements Runnable {
     private static Logger logger = LogManager.getLogger(SaveGameLoader.class);
@@ -24,7 +26,7 @@ public class SaveGameLoader implements Runnable {
     /**
      * Stores the tags and names of each localized nation tag
      */
-    private static Map<CountryTag, String> localizedNationTagsToNames = new HashMap<>();
+    private static Map<String, String> localizedNationTagsToNames = new HashMap<>();
     /**
      * Stores the tags and names of custom nations and colonies that do not have localization
      */
@@ -65,7 +67,7 @@ public class SaveGameLoader implements Runnable {
                                 name = name.replace("\"", "");
 
                                 try {
-                                    localizedNationTagsToNames.put(new CountryTag(tag.trim()), name.trim());
+                                    localizedNationTagsToNames.put(tag.trim(), name.trim());
                                 } catch (IllegalArgumentException e) {
                                     errorsThrown = true;
                                     logger.warn("Error reading localization file: " + e.getMessage());
@@ -76,7 +78,7 @@ public class SaveGameLoader implements Runnable {
                         if (errorsThrown) {
                             logger.warn("Country Names Initialized with Errors");
                         } else {
-                            logger.debug("Country Names Successfully Initialized");
+                            logger.trace("Country Names Successfully Initialized");
                         }
                     } catch (IOException e) {
                         logger.warn("Could not read localization file");
@@ -115,15 +117,18 @@ public class SaveGameLoader implements Runnable {
         logger.info("Starting Load of Save " + saveFile.getName());
         Save save = new Save(saveFile.getName());
 
-        int countryListStart = lines.indexOf("countries={");
+        int countryListStart = lines.indexOf(SaveFileStrings.countriesSectionStartDelimiter);
+        int countryListEnd = lines.indexOf(SaveFileStrings.countriesSectionEndDelimiter);
 
-        for (int i = countryListStart; i < lines.size(); i++) {
-            if (lines.get(i).contains("has_set_government_name=yes")) {
-                Country country = loadCountry(i);
+        for (int i = countryListStart; i < countryListEnd; i++) {
+            if (lines.get(i).matches(SaveFileStrings.countryTagRegex)) {
+                List<String> countryData = findCountryDataBlock(i);
 
-                if (null != country) {
-                    save.addCountry(country);
-                }
+                loadCountry(countryData).ifPresent(
+                    (country) -> {
+                        save.addCountry(country);
+                    }
+                );
             }
 
             if (isAborted()) {
@@ -135,62 +140,105 @@ public class SaveGameLoader implements Runnable {
         return save;
     }
 
-    private Country loadCountry(int referenceIndex) throws SaveLoadException, LoadInterruptedException {
-        String countryTag = findTag(referenceIndex);
-        if (Strings.isNullOrEmpty(countryTag)) {
+    private Optional<Country> loadCountry(List<String> countryData) throws SaveLoadException, LoadInterruptedException {
+        String countryTagString = findTag(countryData);
+        if (Strings.isNullOrEmpty(countryTagString)) {
             throw new SaveLoadException(saveFile.getName(), SaveLoadException.SaveLoadExceptionType.TAG_NOT_FOUND);
-        } else if (ProgramConstants.omittedCountryTags.contains(countryTag)) {
-            logger.trace("Skipping Country Tag " + countryTag);
-            return null;
+        } else if (ProgramConstants.omittedCountryTags.contains(countryTagString) || !countryData.contains(SaveFileStrings.countryHasName)) {
+            logger.debug("Skipping Country Tag " + countryTagString);
+            return Optional.empty();
         }
-        logger.debug("Loading Country " + countryTag);
-        Country country = new Country(new CountryTag(countryTag));
+        logger.trace("Loading Country " + countryTagString);
+        Country country = new Country(new CountryTag(countryTagString));
 
-        List<String> ownedProvinceIds = findOwnedProvinceIds(countryTag);
+        country.setName(localizedNationTagsToNames.containsKey(countryTagString) ?
+                            localizedNationTagsToNames.get(countryTagString) :
+                            getCountryCustomName(countryData)
+                );
 
-        for (String provinceId : ownedProvinceIds) {
-            country.addProvince(loadProvince(provinceId));
+        List<Integer> ownedProvinceIds = findOwnedProvinceIds(countryData);
+        if (ownedProvinceIds.isEmpty()) {
+            logger.debug("Skipping Country Tag " + countryTagString);
+            return Optional.empty();
+        }
+
+        for (Integer provinceId : ownedProvinceIds) {
+            loadProvince(provinceId).ifPresent(
+                (province) -> {
+                    country.addProvince(province);
+                }
+            );
 
             if (isAborted()) {
                 throw new LoadInterruptedException();
             }
         }
 
-        logger.debug("Loaded Country " + countryTag);
-        return country;
+        if (country.getName().equals(ProgramConstants.MISSING_LOCALIZATION)) {
+            logger.warn("Loaded Country Tag " + countryTagString + " with missing localization");
+        } else {
+            logger.trace("Loaded Country " + countryTagString);
+        }
+        return Optional.of(country);
     }
 
-    private Province loadProvince(String provinceId) {
-        logger.debug("Loading Province " + provinceId);
-        lines.indexOf(provinceId);
-        return null;
+    private Optional<Province> loadProvince(int provinceId) {
+        logger.trace("Loading Province " + provinceId);
+        List<String> provinceData = findProvinceDataBlock(provinceId);
+
+//        findProvinceName(provinceData);
+//        collectProductionData(provinceData);
+//        collectPopulationData(provinceData);
+
+        return Optional.empty();
     }
 
-    private String findTag(int referenceIndex) {
-        for (int x = referenceIndex; x >= 0; x--) {
-            if (lines.get(x).matches("\t[A-Z0-9]{3,4}=[{]")) {
-                String tagLine = lines.get(x);
-                return tagLine.trim().split("=")[0];
+    private List<String> findCountryDataBlock(int startIndex) {
+        int endOfCountriesSection = lines.indexOf(SaveFileStrings.countriesSectionEndDelimiter);
+
+        for (int i = startIndex + 1; i < endOfCountriesSection; i++) {
+            if (lines.get(i).matches(SaveFileStrings.countryTagRegex)) {
+                int endIndex = i - 1;
+                return lines.subList(startIndex, endIndex);
             }
+        }
+
+        return lines.subList(startIndex, endOfCountriesSection);
+    }
+    private List<String> findProvinceDataBlock(int provinceId) {
+        int startIndex = lines.indexOf(SaveFileStrings.buildProvinceMarkerString(provinceId));
+        String nextProvinceMarker = SaveFileStrings.buildProvinceMarkerString(provinceId + 1);
+        int endIndex = lines.contains(nextProvinceMarker) ?
+                            lines.indexOf(nextProvinceMarker) - 1 :
+                            lines.indexOf(SaveFileStrings.countriesSectionStartDelimiter);
+
+        return lines.subList(startIndex, endIndex);
+    }
+
+    private String findTag(List<String> countryData) {
+        if (countryData.get(0).matches(SaveFileStrings.countryTagRegex)) {
+            String tagLine = countryData.get(0);
+            return tagLine.trim().split("=")[0];
         }
 
         return null;
     }
-
-    private List<String> findOwnedProvinceIds(String tag) {
-        int startIndex = lines.indexOf("\t" + tag + "={");
-
-        for (int i = startIndex + 1; i < lines.size(); i++) {
-            String line = lines.get(i);
-            if (line.contains("owned_provinces={")) {
-                return List.of(lines.get(i+1).trim().split(" "));
-            } else if (line.matches("\t[A-Z0-9]{3,4}=[{]")) {
-                logger.trace("No Owned Provinces");
-                break;
-            }
+    private String getCountryCustomName(List<String> countryData) {
+        Optional<String> nameString = countryData.stream().filter((str) -> str.startsWith(SaveFileStrings.countrySetName)).findFirst();
+        if (nameString.isPresent()) {
+            return nameString.get().split("=")[1].replace("\"", "").trim();
+        } else {
+            return ProgramConstants.MISSING_LOCALIZATION;
         }
-
-        return Collections.emptyList();
+    }
+    private List<Integer> findOwnedProvinceIds(List<String> countryData) {
+        int ownedProvinceLineIndex = countryData.indexOf(SaveFileStrings.countryOwnedProvinces);
+        if (ownedProvinceLineIndex == -1) {
+            return Collections.emptyList();
+        } else {
+            List<String> provinceIds = List.of(countryData.get(ownedProvinceLineIndex+1).trim().split(" "));
+            return provinceIds.stream().map(Integer::parseInt).collect(Collectors.toList());
+        }
     }
 
     private boolean isAborted() {

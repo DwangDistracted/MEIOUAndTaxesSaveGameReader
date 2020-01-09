@@ -18,6 +18,7 @@ public class ProgramConstants {
 
     public static final Charset CHARSET = StandardCharsets.ISO_8859_1;
     public static final String DEFAULT_LOCALIZATION = "countryList.yml";
+    public static final String MISSING_LOCALIZATION = "MISSING_LOCALIZATION";
     public static final String EU4_EXT = ".eu4";
 
     public static final Set<String> omittedCountryTags = ImmutableSet.of("---", "REB", "PIR", "NAT", "AAA");

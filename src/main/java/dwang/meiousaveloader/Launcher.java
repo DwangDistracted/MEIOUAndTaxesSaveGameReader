@@ -29,7 +29,7 @@ public class Launcher {
             System.exit(1);
         }
 
-        logger.debug("Found the EU4 Save Game Directory at '" + DirectoryConstants.getSaveGameDirectory().get().getAbsolutePath() + "'");
+        logger.trace("Found the EU4 Save Game Directory at '" + DirectoryConstants.getSaveGameDirectory().get().getAbsolutePath() + "'");
         SaveGameLoader.init();
 
         new SaveGameSelector();

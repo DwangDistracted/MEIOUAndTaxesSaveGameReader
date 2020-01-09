@@ -44,4 +44,12 @@ public class Country {
     public Map<CountryTag, SubjectType> getSubjects() {
         return subjects;
     }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
 }
