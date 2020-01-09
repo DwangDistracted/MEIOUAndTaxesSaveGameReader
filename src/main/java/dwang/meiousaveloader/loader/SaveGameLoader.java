@@ -4,7 +4,6 @@ import com.google.common.base.Strings;
 import dwang.meiousaveloader.constants.ProgramConstants;
 import dwang.meiousaveloader.constants.SaveFileStrings;
 import dwang.meiousaveloader.model.Country;
-import dwang.meiousaveloader.model.CountryTag;
 import dwang.meiousaveloader.model.Province;
 import dwang.meiousaveloader.model.Save;
 import org.apache.logging.log4j.LogManager;
@@ -27,10 +26,6 @@ public class SaveGameLoader implements Runnable {
      * Stores the tags and names of each localized nation tag
      */
     private static Map<String, String> localizedNationTagsToNames = new HashMap<>();
-    /**
-     * Stores the tags and names of custom nations and colonies that do not have localization
-     */
-    private Map<CountryTag, String> customNationTagsToNames = new HashMap<>();
 
     private File saveFile;
     private boolean includeSubjects;
@@ -141,24 +136,24 @@ public class SaveGameLoader implements Runnable {
     }
 
     private Optional<Country> loadCountry(List<String> countryData) throws SaveLoadException, LoadInterruptedException {
-        String countryTagString = findTag(countryData);
-        if (Strings.isNullOrEmpty(countryTagString)) {
+        String countryTag = findTag(countryData);
+        if (Strings.isNullOrEmpty(countryTag)) {
             throw new SaveLoadException(saveFile.getName(), SaveLoadException.SaveLoadExceptionType.TAG_NOT_FOUND);
-        } else if (ProgramConstants.omittedCountryTags.contains(countryTagString) || !countryData.contains(SaveFileStrings.countryHasName)) {
-            logger.debug("Skipping Country Tag " + countryTagString);
+        } else if (ProgramConstants.omittedCountryTags.contains(countryTag) || !countryData.contains(SaveFileStrings.countryHasName)) {
+            logger.debug("Skipping Country Tag " + countryTag);
             return Optional.empty();
         }
-        logger.trace("Loading Country " + countryTagString);
-        Country country = new Country(new CountryTag(countryTagString));
+        logger.trace("Loading Country " + countryTag);
+        Country country = new Country(countryTag);
 
-        country.setName(localizedNationTagsToNames.containsKey(countryTagString) ?
-                            localizedNationTagsToNames.get(countryTagString) :
+        country.setName(localizedNationTagsToNames.containsKey(countryTag) ?
+                            localizedNationTagsToNames.get(countryTag) :
                             getCountryCustomName(countryData)
                 );
 
         List<Integer> ownedProvinceIds = findOwnedProvinceIds(countryData);
         if (ownedProvinceIds.isEmpty()) {
-            logger.debug("Skipping Country Tag " + countryTagString);
+            logger.debug("Skipping Country Tag " + countryTag);
             return Optional.empty();
         }
 
@@ -175,9 +170,9 @@ public class SaveGameLoader implements Runnable {
         }
 
         if (country.getName().equals(ProgramConstants.MISSING_LOCALIZATION)) {
-            logger.warn("Loaded Country Tag " + countryTagString + " with missing localization");
+            logger.warn("Loaded Country Tag " + countryTag + " with missing localization");
         } else {
-            logger.trace("Loaded Country " + countryTagString);
+            logger.trace("Loaded Country " + countryTag);
         }
         return Optional.of(country);
     }
