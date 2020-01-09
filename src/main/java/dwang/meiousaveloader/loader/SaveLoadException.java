@@ -7,7 +7,7 @@ public class SaveLoadException extends Exception {
 
     public enum SaveLoadExceptionType {
         TAG_NOT_FOUND("Could not find country tag"),
-        CORRUPT_DATA_FORMAT("Load File Country Data is Corrupted");
+        CORRUPT_DATA("Save File Data is Corrupted");
 
         private String message;
         SaveLoadExceptionType(String message) {

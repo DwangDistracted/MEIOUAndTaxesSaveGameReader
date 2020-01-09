@@ -56,4 +56,13 @@ public class Country {
     public String getTag() {
         return tag;
     }
+
+    public int getTotalDevelopment() {
+        return ownedProvinces.stream().mapToInt(Province::getTotalDevelopment).sum();
+    }
+    public int getTotalPopulation() {
+        return ownedProvinces.stream().mapToInt(Province::getTotalPopulation).sum();
+    }
+
+    // TODO - getPopulationClass and getPopulationReligionBreakdown
 }

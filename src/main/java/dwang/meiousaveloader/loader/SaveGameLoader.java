@@ -177,15 +177,28 @@ public class SaveGameLoader implements Runnable {
         return Optional.of(country);
     }
 
-    private Optional<Province> loadProvince(int provinceId) {
+    private Optional<Province> loadProvince(int provinceId) throws SaveLoadException {
         logger.trace("Loading Province " + provinceId);
         List<String> provinceData = findProvinceDataBlock(provinceId);
+        if (provinceData.isEmpty()) {
+            throw new SaveLoadException(saveFile.getName(), SaveLoadException.SaveLoadExceptionType.CORRUPT_DATA);
+        }
 
-//        findProvinceName(provinceData);
-//        collectProductionData(provinceData);
-//        collectPopulationData(provinceData);
+        Province province = new Province(provinceId);
 
-        return Optional.empty();
+        for (String line : provinceData) {
+            if (line.startsWith(SaveFileStrings.provinceNameAttr)) {
+                String provinceName = line.split("=")[1].replace("\"","").trim();
+                province.setName(provinceName);
+                logger.trace("Province Name found: " + provinceName);
+            } else if (line.startsWith(SaveFileStrings.provinceCityNameAttr)) {
+                String cityName = line.split("=")[1].replace("\"","").trim();
+                province.setCity(cityName);
+                logger.trace("Province City found: " + cityName);
+            }
+        }
+
+        return Optional.of(province);
     }
 
     private List<String> findCountryDataBlock(int startIndex) {
@@ -202,6 +215,10 @@ public class SaveGameLoader implements Runnable {
     }
     private List<String> findProvinceDataBlock(int provinceId) {
         int startIndex = lines.indexOf(SaveFileStrings.buildProvinceMarkerString(provinceId));
+        if (startIndex == -1) {
+            return Collections.emptyList();
+        }
+
         String nextProvinceMarker = SaveFileStrings.buildProvinceMarkerString(provinceId + 1);
         int endIndex = lines.contains(nextProvinceMarker) ?
                             lines.indexOf(nextProvinceMarker) - 1 :
