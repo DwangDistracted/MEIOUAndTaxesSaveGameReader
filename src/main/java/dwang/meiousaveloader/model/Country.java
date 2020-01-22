@@ -25,10 +25,10 @@ public class Country {
         subjects = new HashMap<>();
     }
 
-    public void addProvince(Province province) {
+    public synchronized void addProvince(Province province) {
         ownedProvinces.add(province);
     }
-    public List<Province> getProvinces() {
+    public synchronized List<Province> getProvinces() {
         return ownedProvinces;
     }
 

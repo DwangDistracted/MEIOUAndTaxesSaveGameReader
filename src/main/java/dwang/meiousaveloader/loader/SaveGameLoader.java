@@ -4,7 +4,6 @@ import com.google.common.base.Strings;
 import dwang.meiousaveloader.constants.ProgramConstants;
 import dwang.meiousaveloader.constants.SaveFileStrings;
 import dwang.meiousaveloader.model.Country;
-import dwang.meiousaveloader.model.Province;
 import dwang.meiousaveloader.model.Save;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,7 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class SaveGameLoader implements Runnable {
+public class SaveGameLoader extends Thread {
     private static Logger logger = LogManager.getLogger(SaveGameLoader.class);
 
     /**
@@ -127,7 +126,7 @@ public class SaveGameLoader implements Runnable {
             }
 
             if (isAborted()) {
-                throw new LoadInterruptedException();
+                throw new LoadInterruptedException(saveFile.getName());
             }
         }
 
@@ -158,47 +157,26 @@ public class SaveGameLoader implements Runnable {
         }
 
         for (Integer provinceId : ownedProvinceIds) {
-            loadProvince(provinceId).ifPresent(
-                (province) -> {
-                    country.addProvince(province);
-                }
-            );
+            logger.trace("Loading Province " + provinceId);
+            List<String> provinceData = findProvinceDataBlock(provinceId);
+            if (provinceData.isEmpty()) {
+                throw new SaveLoadException(saveFile.getName(), SaveLoadException.SaveLoadExceptionType.CORRUPT_DATA);
+            }
+
+            ProvinceLoader loader = new ProvinceLoader(country, provinceId, provinceData);
+            loader.start();
 
             if (isAborted()) {
-                throw new LoadInterruptedException();
+                throw new LoadInterruptedException(saveFile.getName());
             }
         }
 
         if (country.getName().equals(ProgramConstants.MISSING_LOCALIZATION)) {
             logger.warn("Loaded Country Tag " + countryTag + " with missing localization");
         } else {
-            logger.trace("Loaded Country " + countryTag);
+            logger.trace("Loaded Country " + countryTag + " Named " + country.getName());
         }
         return Optional.of(country);
-    }
-
-    private Optional<Province> loadProvince(int provinceId) throws SaveLoadException {
-        logger.trace("Loading Province " + provinceId);
-        List<String> provinceData = findProvinceDataBlock(provinceId);
-        if (provinceData.isEmpty()) {
-            throw new SaveLoadException(saveFile.getName(), SaveLoadException.SaveLoadExceptionType.CORRUPT_DATA);
-        }
-
-        Province province = new Province(provinceId);
-
-        for (String line : provinceData) {
-            if (line.startsWith(SaveFileStrings.provinceNameAttr)) {
-                String provinceName = line.split("=")[1].replace("\"","").trim();
-                province.setName(provinceName);
-                logger.trace("Province Name found: " + provinceName);
-            } else if (line.startsWith(SaveFileStrings.provinceCityNameAttr)) {
-                String cityName = line.split("=")[1].replace("\"","").trim();
-                province.setCity(cityName);
-                logger.trace("Province City found: " + cityName);
-            }
-        }
-
-        return Optional.of(province);
     }
 
     private List<String> findCountryDataBlock(int startIndex) {
@@ -267,8 +245,5 @@ public class SaveGameLoader implements Runnable {
         LoadStatus(String status) {
             this.status = status;
         }
-    }
-
-    private class LoadInterruptedException extends Exception {
     }
 }

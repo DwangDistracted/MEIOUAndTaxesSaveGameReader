@@ -20,12 +20,10 @@ public class LoadSaveProgressBar extends JFrame implements ActionListener {
     private SaveGameLoader saveGameLoader;
     private JProgressBar progressBar;
     private JLabel statusLabel;
-    Thread loadingThread;
 
     public LoadSaveProgressBar(SaveGameLoader saveGameLoader, String saveGameName) {
         this.saveGameLoader = saveGameLoader;
-        loadingThread = new Thread(saveGameLoader);
-        loadingThread.start();
+        saveGameLoader.start();
 
         JLabel saveGameLabel = new JLabel("Loading " + saveGameName + "...");
         saveGameLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
